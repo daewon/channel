@@ -2,8 +2,8 @@
 <project version="4">
   <component name="ProjectModuleManager">
     <modules>
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/akka-channel_9784.iml" filepath="$PROJECT_DIR$/.idea/modules/akka-channel_9784.iml" />
-      <module fileurl="file://$PROJECT_DIR$/.idea/modules/akka-channel_9784-build.iml" filepath="$PROJECT_DIR$/.idea/modules/akka-channel_9784-build.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/ioChat.iml" filepath="$PROJECT_DIR$/.idea/modules/ioChat.iml" />
+      <module fileurl="file://$PROJECT_DIR$/.idea/modules/ioChat-build.iml" filepath="$PROJECT_DIR$/.idea/modules/ioChat-build.iml" />
     </modules>
   </component>
 </project>
