@@ -6,14 +6,15 @@ import org.scalatest.{Matchers, WordSpec}
 import akka.util.ByteString
 
 
-class ChannelServiceRouteTest extends WordSpec with Matchers with ChannelServiceRoute with ScalatestRouteTest {
+// ScalatestRouteTest should first extends class for implicit values
+class ChannelServiceRouteTest extends WordSpec with Matchers with ScalatestRouteTest with ChannelServiceRoute {
 
   val wsClient = WSProbe()
 
   // WS creates a WebSocket request for testing
-  val topic = "akka-ws"
+  val userId = "akka-ws"
 
-  WS(s"/subscribe/${topic}", wsClient.flow) ~> channelRoute ~>
+  WS(s"/join/${userId}", wsClient.flow) ~> channelRoute ~>
     check {
       // check response f
       isWebSocketUpgrade shouldEqual true

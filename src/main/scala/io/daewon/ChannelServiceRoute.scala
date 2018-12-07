@@ -1,56 +1,57 @@
 package io.daewon
 
-import akka.NotUsed
+import akka.actor.ActorSystem
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model.StatusCodes
-import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
-import akka.stream.{ActorMaterializer, OverflowStrategy}
-import akka.stream.scaladsl._
+import akka.stream._
+import org.slf4j.LoggerFactory
+
+import io.daewon.Channel.{ChannelCommand, Leave}
 
 trait ChannelServiceRoute extends SprayJsonSupport {
+  implicit val system: ActorSystem
   implicit val materializer: ActorMaterializer
 
-  val clients = collection.concurrent.TrieMap.empty[String, (SourceQueueWithComplete[Message], Source[Message, NotUsed])]
+  private val logger = LoggerFactory.getLogger(this.getClass)
 
-  def lookupQueue(topic: String): (SourceQueueWithComplete[Message], Source[Message, NotUsed]) = clients.getOrElseUpdate(topic, {
-    Source.queue[Message](100, OverflowStrategy.fail).preMaterialize
-  })
-
-  def lookupChannel(topic: String): Flow[Message, Message, NotUsed] = {
-    val (queue, source) = lookupQueue(topic)
-
-    Flow[Message]
-      .merge(source, true)
-      .mapConcat {
-        case tm: TextMessage =>
-          TextMessage(Source.single("Hello ") ++ tm.textStream ++ Source.single("!")) :: Nil
-        case bm: BinaryMessage =>
-          // ignore binary messages but drain content to avoid the stream being clogged
-          bm.dataStream.runWith(Sink.ignore)
-          Nil
-      }
+  def onChannelEvent(cmd: ChannelCommand): Unit = cmd match {
+    case _ => logger.info(cmd.toString)
   }
 
-  val publish = path("publish" / Segment / Segment) { (topic, message) =>
-    val (q, _) = lookupQueue(topic)
-    q.offer(TextMessage(message))
-    //    Source.single(TextMessage(message)).via(lookupChannel(topic)).to(Sink.ignore).run()
+  lazy val channel: Channel = new Channel(onChannelEvent)
+
+  lazy val join = path("join" / Segment) { userId =>
+    handleWebSocketMessagesForOptionalProtocol(channel.join(userId), None)
+  }
+
+  lazy val leave = path("leave" / Segment) { userId =>
+    channel.leave(userId)
     complete(StatusCodes.OK)
   }
 
-  val subscribe = path("subscribe" / Segment) { topic =>
-    //      handleWebSocketMessagesForOptionalProtocol(lookupChannel(id), None)
-    handleWebSocketMessagesForOptionalProtocol(lookupChannel(topic), None)
+  lazy val subscribe = path("subscribe" / Segment / Segment) { (userId, topic) =>
+    channel.subscribe(userId, topic)
+    complete(StatusCodes.OK)
+  }
+
+  lazy val unsubscribe = path("unsubscribe" / Segment / Segment) { (userId, topic) =>
+    channel.unsubscribe(userId, topic)
+    complete(StatusCodes.OK)
+  }
+
+  lazy val publish = path("publish" / Segment / Segment / Segment) { (userId, topic, message) =>
+    channel.publish(userId, topic, message)
+    complete(StatusCodes.OK)
   }
 
   // routes
-  val channelRoute: Route =
+  lazy val channelRoute: Route =
     get {
-      concat(subscribe)
+      concat(join)
     } ~ put {
-      concat(publish)
+      concat(leave, subscribe, unsubscribe, publish)
     }
 
 }

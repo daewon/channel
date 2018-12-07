@@ -13,7 +13,7 @@ import akka.stream._
 import com.typesafe.config.ConfigFactory
 import org.slf4j.LoggerFactory
 
-object Server extends App with ChannelServiceRoute {
+object Bootstrap extends App with ChannelServiceRoute {
 
   implicit val system: ActorSystem = ActorSystem("HttpServer")
   implicit val materializer: ActorMaterializer = ActorMaterializer()

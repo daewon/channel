@@ -2,7 +2,7 @@
   * test
   */
 lazy val akkaHttpVersion = "10.1.5"
-lazy val akkaVersion = "2.5.18"
+lazy val akkaVersion = "2.5.19"
 lazy val slf4jVersion = "1.8.0-beta2"
 
 name := "ioChat"
@@ -10,6 +10,8 @@ name := "ioChat"
 version := "0.1"
 
 description := "s2graph http server"
+
+scalaVersion := "2.12.8"
 
 scalacOptions ++= Seq(
 
