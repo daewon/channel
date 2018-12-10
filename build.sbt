@@ -14,7 +14,6 @@ description := "s2graph http server"
 scalaVersion := "2.12.8"
 
 scalacOptions ++= Seq(
-
   "-unchecked",
   "-encoding", "utf8", // Option and arguments on same line
   "-deprecation",

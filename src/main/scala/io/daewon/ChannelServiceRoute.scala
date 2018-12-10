@@ -3,12 +3,12 @@ package io.daewon
 import akka.actor.ActorSystem
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 import akka.http.scaladsl.model.StatusCodes
+import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.http.scaladsl.server.Directives._
 import akka.http.scaladsl.server._
 import akka.stream._
+import akka.stream.scaladsl.{Flow, Sink, Source}
 import org.slf4j.LoggerFactory
-
-import io.daewon.Channel.{ChannelCommand, Leave}
 
 trait ChannelServiceRoute extends SprayJsonSupport {
   implicit val system: ActorSystem
@@ -42,7 +42,7 @@ trait ChannelServiceRoute extends SprayJsonSupport {
   }
 
   lazy val publish = path("publish" / Segment / Segment / Segment) { (userId, topic, message) =>
-    channel.publish(userId, topic, message)
+    channel.publish(None, userId, topic, message)
     complete(StatusCodes.OK)
   }
 
