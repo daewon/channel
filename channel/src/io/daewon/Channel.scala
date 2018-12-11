@@ -23,6 +23,13 @@ final case class Publish(senderId: String, topic: String, message: String) exten
 
 final case class Response(status: Int = 200, message: Option[String] = None) extends ChannelCommand
 
+object Response {
+  def apply(bool: Boolean) = bool match {
+    case false => new Response(500, Option("request failed"))
+    case true => new Response(200, Option("request successful"))
+  }
+}
+
 trait ChannelProtocol[A] {
   def encode(cmd: ChannelCommand): A
 
@@ -35,7 +42,7 @@ object ChannelProtocol extends DefaultJsonProtocol with ChannelProtocol[String] 
     implicit val publishFormat = jsonFormat3(Publish)
     implicit val subscribeFormat = jsonFormat2(Subscribe)
     implicit val unSubscribeFormat = jsonFormat2(UnSubscribe)
-    implicit val responseFormat = jsonFormat2(Response)
+    implicit val responseFormat = jsonFormat2(Response.apply)
 
     def write(obj: ChannelCommand): JsValue =
       JsObject((obj match {
@@ -89,11 +96,11 @@ class Channel(channelEventCallback: ChannelCommand => Unit)(implicit materialize
       case Join(userId) => // pass
       case Leave(userId) => leave(userId)
       case Subscribe(userId, topic) =>
-        subscribe(userId, topic)
-        sender.offer(Response())
+        val isSuccess = subscribe(userId, topic)
+        sender.offer(Response(isSuccess))
       case UnSubscribe(userId, topic) =>
-        unsubscribe(userId, topic)
-        sender.offer(Response())
+        val isSuccess = unsubscribe(userId, topic)
+        sender.offer(Response(isSuccess))
       case Publish(userId, topic, message) =>
         publish(Option(sender), userId, topic, message)
         sender.offer(Response())

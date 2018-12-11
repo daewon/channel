@@ -26,7 +26,7 @@ class ChannelServiceRouteTest extends WordSpec with Matchers with ScalatestRoute
     isWebSocketUpgrade shouldEqual true
 
     dun.sendMessage(encode(Subscribe(userDun, topic)))
-    dun.expectMessage(encode(Response()))
+    dun.expectMessage(encode(Response(true)))
 
     // ignore binary message
     dun.sendMessage(BinaryMessage(ByteString("abcdef")))
@@ -36,7 +36,7 @@ class ChannelServiceRouteTest extends WordSpec with Matchers with ScalatestRoute
       isWebSocketUpgrade shouldEqual true
 
       yanggury.sendMessage(encode(Subscribe(userYang, topic)))
-      yanggury.expectMessage(encode(Response()))
+      yanggury.expectMessage(encode(Response(true)))
 
       // sender don't receive self message
       yanggury.sendMessage(encode(Publish(userDun, topic, "websocket")))
