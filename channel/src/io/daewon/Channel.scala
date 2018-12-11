@@ -21,7 +21,7 @@ final case class UnSubscribe(userId: String, topic: String) extends ChannelComma
 
 final case class Publish(senderId: String, topic: String, message: String) extends ChannelCommand
 
-final case class RequestSuccess() extends ChannelCommand
+final case class Response(status: Int = 200, message: Option[String] = None) extends ChannelCommand
 
 trait ChannelProtocol[A] {
   def encode(cmd: ChannelCommand): A
@@ -35,14 +35,14 @@ object ChannelProtocol extends DefaultJsonProtocol with ChannelProtocol[String] 
     implicit val publishFormat = jsonFormat3(Publish)
     implicit val subscribeFormat = jsonFormat2(Subscribe)
     implicit val unSubscribeFormat = jsonFormat2(UnSubscribe)
-    implicit val requestSuccessFormat = jsonFormat0(RequestSuccess)
+    implicit val responseFormat = jsonFormat2(Response)
 
     def write(obj: ChannelCommand): JsValue =
       JsObject((obj match {
         case subscribe: Subscribe => subscribe.toJson
         case unsubscribe: UnSubscribe => unsubscribe.toJson
         case publish: Publish => publish.toJson
-        case requestSuccess: RequestSuccess => requestSuccess.toJson
+        case response: Response => response.toJson
         case _ => throw new RuntimeException("can't be here")
       }).asJsObject.fields + ("type" -> JsString(obj.productPrefix)))
 
@@ -51,7 +51,7 @@ object ChannelProtocol extends DefaultJsonProtocol with ChannelProtocol[String] 
         case Seq(JsString("Publish")) => json.convertTo[Publish]
         case Seq(JsString("Subscribe")) => json.convertTo[Subscribe]
         case Seq(JsString("UnSubscribe")) => json.convertTo[UnSubscribe]
-        case Seq(JsString("RequestSuccess")) => json.convertTo[RequestSuccess]
+        case Seq(JsString("Response")) => json.convertTo[Response]
       }
   }
 
@@ -61,7 +61,6 @@ object ChannelProtocol extends DefaultJsonProtocol with ChannelProtocol[String] 
   def decode(cmd: String) =
     cmd.parseJson.convertTo[ChannelCommand]
 }
-
 
 /**
   * Abstract user connections.
@@ -91,17 +90,17 @@ class Channel(channelEventCallback: ChannelCommand => Unit)(implicit materialize
       case Leave(userId) => leave(userId)
       case Subscribe(userId, topic) =>
         subscribe(userId, topic)
-        sender.offer(RequestSuccess())
+        sender.offer(Response())
       case UnSubscribe(userId, topic) =>
         unsubscribe(userId, topic)
-        sender.offer(RequestSuccess())
+        sender.offer(Response())
       case Publish(userId, topic, message) =>
         publish(Option(sender), userId, topic, message)
-        sender.offer(RequestSuccess())
-      case RequestSuccess() => // pass
+        sender.offer(Response())
+      case Response(status, messageOpt) => // pass
     }
 
-    RequestSuccess()
+    Response()
   }
 
   def publish(sender: Option[SourceQueueWithComplete[ChannelCommand]], senderId: String, topic: String, message: String) = {
@@ -118,14 +117,12 @@ class Channel(channelEventCallback: ChannelCommand => Unit)(implicit materialize
     }
   }
 
-  def subscribe(userId: String, topic: String) = {
+  def subscribe(userId: String, topic: String): Boolean = {
     val old = topics.getOrElseUpdate(topic, Nil)
-    val isSuccess = topics.replace(topic, (userId :: old).distinct)
-
-    isSuccess
+    topics.replace(topic, (userId :: old).distinct).nonEmpty
   }
 
-  def unsubscribe(userId: String, topic: String) = {
+  def unsubscribe(userId: String, topic: String): Boolean = {
     val old = topics.getOrElseUpdate(userId, Nil)
     val newValue = old.filterNot(_ == topic)
     val isSuccess = topics.replace(userId, old, newValue)
@@ -146,9 +143,8 @@ class Channel(channelEventCallback: ChannelCommand => Unit)(implicit materialize
 
   def join(userId: String): Flow[Message, TextMessage, Unit] = {
     import ChannelProtocol._
-
     //     for send message to client: Merge flow with source
-    val (_, source) = getOrCreateQueue(userId)
+    val (queue, source) = getOrCreateQueue(userId)
 
     Flow[Message]
       .watchTermination() { (_, f) =>
@@ -157,9 +153,7 @@ class Channel(channelEventCallback: ChannelCommand => Unit)(implicit materialize
       }
       .mapConcat {
         case TextMessage.Strict(msg) =>
-          connections.get(userId).foreach { case (q, _) =>
-            receive(q, ChannelProtocol.decode(msg))
-          }
+          receive(queue, ChannelProtocol.decode(msg))
           Nil
         case tm: TextMessage =>
           tm.textStream.runWith(Sink.ignore)

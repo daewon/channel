@@ -43,7 +43,8 @@ object channel extends ScalaModule {
     ivy"io.getquill::quill:2.6.0",
     ivy"com.typesafe.akka::akka-http:${akkaHttpVersion}",
     ivy"com.typesafe.akka::akka-http-spray-json:${akkaHttpVersion}",
-    ivy"com.typesafe.akka::akka-stream:${akkaVersion}"
+    ivy"com.typesafe.akka::akka-stream:${akkaVersion}",
+    ivy"org.typelevel::cats-core:1.5.0"
   )
 
   override def forkArgs = Seq("-Xmx4g")
