@@ -4,10 +4,14 @@ import mill.scalalib._
 
 object channel extends ScalaModule {
   def scalaVersion = "2.12.8"
+
   def akkaHttpVersion = "10.1.5"
+
   def akkaVersion = "2.5.19"
+
   def slf4jVersion = "1.8.0-beta2"
-  def scalacOptions = Seq(
+
+  override def scalacOptions = Seq(
     "-Ydelambdafy:inline",
     "-unchecked",
     "-encoding", "utf8", // Option and arguments on same line
@@ -32,7 +36,7 @@ object channel extends ScalaModule {
     "-Ywarn-numeric-widen"
   )
 
-  def ivyDeps = Agg(
+  override def ivyDeps = Agg(
     ivy"org.slf4j:slf4j-api:${slf4jVersion}",
     ivy"org.slf4j:slf4j-simple:${slf4jVersion}",
     ivy"io.spray::spray-json:1.3.5",
@@ -41,11 +45,11 @@ object channel extends ScalaModule {
     ivy"com.typesafe.akka::akka-http-spray-json:${akkaHttpVersion}",
     ivy"com.typesafe.akka::akka-stream:${akkaVersion}"
   )
-  
-  def forkArgs = Seq("-Xmx4g")
 
-  object test extends Tests{
-    def ivyDeps = Agg(
+  override def forkArgs = Seq("-Xmx4g")
+
+  object test extends Tests {
+    override def ivyDeps = Agg(
       ivy"com.typesafe.akka::akka-http-testkit:${akkaHttpVersion}",
       ivy"com.typesafe.akka::akka-stream-testkit:${akkaVersion}",
       ivy"org.scalatest::scalatest:3.0.5"
@@ -57,5 +61,6 @@ object channel extends ScalaModule {
       super.runMain("org.scalatest.run", args: _*)
     }
   }
+
 }
 
