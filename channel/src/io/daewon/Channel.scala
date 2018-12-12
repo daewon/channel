@@ -160,6 +160,7 @@ class Channel(channelEventCallback: ChannelCommand => Unit)(implicit materialize
       }
       .mapConcat {
         case TextMessage.Strict(msg) =>
+          logger.info(msg)
           receive(queue, ChannelProtocol.decode(msg))
           Nil
         case tm: TextMessage =>
