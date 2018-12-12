@@ -3,75 +3,13 @@ package io.daewon
 import akka.NotUsed
 import akka.http.scaladsl.model.ws.{BinaryMessage, Message, TextMessage}
 import akka.stream.{ActorMaterializer, OverflowStrategy}
-import akka.stream.scaladsl.{BroadcastHub, Flow, Keep, MergeHub, Sink, Source, SourceQueueWithComplete}
+import akka.stream.scaladsl.{BroadcastHub, Flow, Keep, Sink, Source, SourceQueueWithComplete}
 import org.slf4j.LoggerFactory
 
 import scala.concurrent.ExecutionContext
-import spray.json._
+import com.softwaremill.tagging._
+import ChannelCommand._
 
-sealed trait ChannelCommand extends Product
-
-final case class Join(userId: String) extends ChannelCommand
-
-final case class Leave(userId: String) extends ChannelCommand
-
-final case class Subscribe(userId: String, topic: String) extends ChannelCommand
-
-final case class UnSubscribe(userId: String, topic: String) extends ChannelCommand
-
-final case class Publish(senderId: String, topic: String, message: String) extends ChannelCommand
-
-final case class Response(status: Int = 200, message: Option[String] = None) extends ChannelCommand
-
-object Response {
-  def apply(bool: Boolean) = bool match {
-    case false => new Response(500, Option("request failed"))
-    case true => new Response(200, Option("request successful"))
-  }
-}
-
-trait ChannelProtocol[A] {
-  def encode(cmd: ChannelCommand): A
-
-  def decode(cmd: A): ChannelCommand
-}
-
-object ChannelProtocol extends DefaultJsonProtocol with ChannelProtocol[String] {
-
-  implicit val channelCommandFormat = new RootJsonFormat[ChannelCommand] {
-    implicit val publishFormat = jsonFormat3(Publish)
-    implicit val subscribeFormat = jsonFormat2(Subscribe)
-    implicit val unSubscribeFormat = jsonFormat2(UnSubscribe)
-    implicit val responseFormat = jsonFormat2(Response.apply)
-
-    def write(obj: ChannelCommand): JsValue =
-      JsObject((obj match {
-        case subscribe: Subscribe => subscribe.toJson
-        case unsubscribe: UnSubscribe => unsubscribe.toJson
-        case publish: Publish => publish.toJson
-        case response: Response => response.toJson
-        case _ => throw new RuntimeException("can't be here")
-      }).asJsObject.fields + ("type" -> JsString(obj.productPrefix)))
-
-    def read(json: JsValue): ChannelCommand =
-      json.asJsObject.getFields("type") match {
-        case Seq(JsString("Publish")) => json.convertTo[Publish]
-        case Seq(JsString("Subscribe")) => json.convertTo[Subscribe]
-        case Seq(JsString("UnSubscribe")) => json.convertTo[UnSubscribe]
-        case Seq(JsString("Response")) => json.convertTo[Response]
-      }
-  }
-
-  def encode(cmd: ChannelCommand): String =
-    cmd.toJson.toString
-
-  def decode(cmd: String) =
-    cmd.parseJson.convertTo[ChannelCommand]
-}
-
-/**
-  * Abstract user connections.
-  */
 class Channel(channelEventCallback: ChannelCommand => Unit)(implicit materializer: ActorMaterializer) {
 
   private val logger = LoggerFactory.getLogger(this.getClass)
@@ -91,28 +29,29 @@ class Channel(channelEventCallback: ChannelCommand => Unit)(implicit materialize
     })
   }
 
-  def receive(sender: SourceQueueWithComplete[ChannelCommand], cmd: ChannelCommand) = {
+  def receive(sender: SourceQueueWithComplete[ChannelCommand], cmd: ChannelCommand): Response = {
     cmd match {
-      case Join(userId) => // pass
+      case Join(_) => // pass
       case Leave(userId) => leave(userId)
-      case Subscribe(userId, topic) =>
-        val isSuccess = subscribe(userId, topic)
-        sender.offer(Response(isSuccess))
-      case UnSubscribe(userId, topic) =>
-        val isSuccess = unsubscribe(userId, topic)
-        sender.offer(Response(isSuccess))
-      case Publish(userId, topic, message) =>
-        publish(Option(sender), userId, topic, message)
-        sender.offer(Response())
-      case Response(status, messageOpt) => // pass
+      case Subscribe(topic, userId) =>
+        val isSuccess = subscribe(topic, userId)
+        sender.offer(Response.cond(isSuccess))
+      case UnSubscribe(topic, userId) =>
+        val isSuccess = unsubscribe(topic, userId)
+        sender.offer(Response.cond(isSuccess))
+      case Publish(topic, userId, message) =>
+        publish(Option(sender), topic, userId, message)
+        sender.offer(Response.OK)
+      case response: Response =>
+        sender.offer(response)
     }
 
-    Response()
+    Response.OK
   }
 
-  def publish(sender: Option[SourceQueueWithComplete[ChannelCommand]], senderId: String, topic: String, message: String) = {
+  def publish(sender: Option[SourceQueueWithComplete[ChannelCommand]], topic: String, userId: String, message: String): Unit = {
     val subscribedUsers = topics.getOrElse(topic, Nil)
-    val msg = Publish(senderId, topic, message)
+    val msg = Publish(topic.taggedWith[Topic], userId.taggedWith[User], message)
 
     subscribedUsers.foreach { subscribeUserId =>
       connections.get(subscribeUserId).foreach { case (q, _) =>
@@ -124,12 +63,12 @@ class Channel(channelEventCallback: ChannelCommand => Unit)(implicit materialize
     }
   }
 
-  def subscribe(userId: String, topic: String): Boolean = {
+  def subscribe(topic: String, userId: String): Boolean = {
     val old = topics.getOrElseUpdate(topic, Nil)
     topics.replace(topic, (userId :: old).distinct).nonEmpty
   }
 
-  def unsubscribe(userId: String, topic: String): Boolean = {
+  def unsubscribe(topic: String, userId: String): Boolean = {
     val old = topics.getOrElseUpdate(userId, Nil)
     val newValue = old.filterNot(_ == topic)
     val isSuccess = topics.replace(userId, old, newValue)
@@ -145,7 +84,7 @@ class Channel(channelEventCallback: ChannelCommand => Unit)(implicit materialize
       connections -= userId
     }
 
-    channelEventCallback(Leave(userId))
+    channelEventCallback(Leave(userId.taggedWith[User]))
   }
 
   def join(userId: String): Flow[Message, TextMessage, Unit] = {
@@ -155,13 +94,18 @@ class Channel(channelEventCallback: ChannelCommand => Unit)(implicit materialize
 
     Flow[Message]
       .watchTermination() { (_, f) =>
-        implicit val ec = ExecutionContext.global
-        f.onComplete { _ => leave(userId) }
+        f.onComplete { _ => leave(userId) }(ExecutionContext.global)
       }
-      .mapConcat {
+      .mapConcat { // from client
         case TextMessage.Strict(msg) =>
           logger.info(msg)
-          receive(queue, ChannelProtocol.decode(msg))
+          logger.info(ChannelProtocol.decode(msg).toString)
+
+          ChannelProtocol.decode(msg) match {
+            case Left(e) => receive(queue, Response(500, Option(e.getMessage)))
+            case Right(cmd) => receive(queue, cmd)
+          }
+
           Nil
         case tm: TextMessage =>
           tm.textStream.runWith(Sink.ignore)
@@ -172,7 +116,7 @@ class Channel(channelEventCallback: ChannelCommand => Unit)(implicit materialize
         case _ => Nil
       }
       .merge(source, true)
-      .map { cmd =>
+      .map { cmd => // to client
         TextMessage(ChannelProtocol.encode(cmd))
       }
   }

@@ -1,4 +1,5 @@
 // build.sc
+
 import mill._
 import mill.scalalib._
 
@@ -11,46 +12,28 @@ object channel extends ScalaModule {
 
   def slf4jVersion = "1.8.0-beta2"
 
-  override def scalacOptions = Seq(
-    "-Ydelambdafy:inline",
-    "-unchecked",
-    "-encoding", "utf8", // Option and arguments on same line
-    "-deprecation",
-    "-explaintypes", // Explain type errors in more detail.
-
-    "-language:higherKinds",
-    "-language:existentials",
-    "-language:postfixOps",
-
-    "-Xfatal-warnings", // New lines for each options
-
-    "-Xlint:constant", // Evaluation of a constant arithmetic expression results in an error.
-
-    "-Ypartial-unification", // Enable partial unification in type constructor inference
-    "-Ywarn-dead-code", // Warn when dead code is identified.
-    "-Ywarn-extra-implicit", // Warn when more than one implicit parameter section is defined.
-    "-Ywarn-inaccessible", // Warn about inaccessible types in method signatures.
-    "-Ywarn-infer-any", // Warn when a type argument is inferred to be `Any`.
-    "-Ywarn-nullary-override", // Warn when non-nullary `def f()' overrides nullary `def f'.
-    "-Ywarn-nullary-unit", // Warn when nullary methods return Unit.
-    "-Ywarn-numeric-widen"
-  )
+  def circeVersion = "0.10.1"
 
   override def ivyDeps = Agg(
     ivy"org.slf4j:slf4j-api:${slf4jVersion}",
     ivy"org.slf4j:slf4j-simple:${slf4jVersion}",
-    ivy"io.spray::spray-json:1.3.5",
-    ivy"io.getquill::quill:2.6.0",
-    ivy"com.typesafe.akka::akka-http:${akkaHttpVersion}",
-    ivy"com.typesafe.akka::akka-http-spray-json:${akkaHttpVersion}",
-    ivy"com.typesafe.akka::akka-stream:${akkaVersion}",
-    ivy"org.typelevel::cats-core:1.5.0"
-  )
 
-  override def forkArgs = Seq("-Xmx4g")
+    ivy"io.getquill::quill:2.6.0",
+
+    ivy"io.spray::spray-json:1.3.5",
+
+    ivy"com.typesafe.akka::akka-http:${akkaHttpVersion}",
+    ivy"com.typesafe.akka::akka-stream:${akkaVersion}",
+    ivy"com.typesafe.akka::akka-http-spray-json:${akkaHttpVersion}",
+
+    ivy"org.typelevel::cats-core:1.5.0",
+    ivy"com.softwaremill.common::tagging:2.2.1"
+  )
 
   object test extends Tests {
     override def ivyDeps = Agg(
+      ivy"com.lihaoyi::os-lib:0.2.5",
+
       ivy"com.typesafe.akka::akka-http-testkit:${akkaHttpVersion}",
       ivy"com.typesafe.akka::akka-stream-testkit:${akkaVersion}",
       ivy"org.scalatest::scalatest:3.0.5"
@@ -63,5 +46,60 @@ object channel extends ScalaModule {
     }
   }
 
-}
+  def lineCount = T {
+    channel.sources()
+      .flatMap(ref => os.walk(ref.path))
+      .filter(path => path.toString.endsWith(".scala"))
+      .map { path => path.toString -> os.read(path).lines.size }
+  }
 
+  override def forkArgs = Seq("-Xmx4g")
+
+  override def scalacOptions = Seq(
+    "-deprecation",
+    "-unchecked",
+    "-encoding", "utf8",
+    "-explaintypes",
+
+    "-language:higherKinds",
+    "-language:existentials",
+    "-language:postfixOps",
+
+    "-Ybackend-worker-queue", "4",
+    "-Yno-adapted-args",
+    "-Ydelambdafy:inline",
+    "-Ypartial-unification",
+
+    "-Xfatal-warnings",
+    "-Xfuture",
+    "-Xcheckinit",
+
+    "-Xlint:constant",
+    "-Xlint:missing-interpolator",
+    "-Xlint:private-shadow",
+    "-Xlint:type-parameter-shadow",
+    "-Xlint:poly-implicit-overload",
+    "-Xlint:option-implicit",
+    "-Xlint:unsound-match",
+    "-Xlint:by-name-right-associative",
+    "-Xlint:package-object-classes",
+
+    "-Ywarn-dead-code",
+    "-Ywarn-inaccessible",
+    "-Ywarn-infer-any",
+    "-Ywarn-nullary-override",
+    "-Ywarn-nullary-unit",
+    "-Ywarn-numeric-widen",
+    "-Ywarn-value-discard",
+    "-Ywarn-extra-implicit",
+
+    // "-Ywarn-unused:imports",
+    //    "-Y:warning:SC-XXXX:ignore",
+    "-Ywarn-unused:locals",
+    "-Ywarn-unused:params",
+    "-Ywarn-unused:patvars",
+    "-Ywarn-unused:privates",
+    "-Ywarn-unused:implicits"
+  )
+
+}

@@ -4,17 +4,20 @@
 
 I chose [mill](http://www.lihaoyi.com/mill/) as a build tool 
 
-[mill](http://www.lihaoyi.com/mill/) has more intuitive syntax and faster build speed than sbt. 
+[mill](http://www.lihaoyi.com/mill/) has more intuitive syntax and faster build speed than sbt. and support for intelliJ is also great.
 
-support for intelliJ is also great.
-
-> Mill supports IntelliJ by default. Use mill mill.scalalib.GenIdea/idea to generate an IntelliJ project config for your build.
-This also configures IntelliJ to allow easy navigate & code-completion within your build file itself.
+## install `mill` and generate an Intellij project
 
 ```
 brew install mill
 ```
 
+> Mill supports IntelliJ by default. Use `mill mill.scalalib.GenIdea/idea` to generate an IntelliJ project config for your build.
+This also configures IntelliJ to allow easy navigate & code-completion within your build file itself.
+
+```
+mill mill.scalalib.GenIdea/idea
+```
 
 ## run
 ```

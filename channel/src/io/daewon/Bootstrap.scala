@@ -23,7 +23,9 @@ object Bootstrap extends App with ChannelServiceRoute {
   val config = ConfigFactory.load()
 
   val port = sys.props.get("http.port").fold(8000)(_.toInt)
-  val serverStatus = s""" { "port": ${port}, "started_at": ${System.currentTimeMillis()} }"""
+  val interface = sys.props.get("http.interface").fold("0.0.0.0")(identity)
+
+  val serverStatus = s""" { "interface": $interface, "port": $port, "started_at": ${System.currentTimeMillis()} }"""
 
   val health = HttpResponse(status = StatusCodes.OK, entity = HttpEntity(ContentTypes.`application/json`, serverStatus))
 
@@ -34,13 +36,13 @@ object Bootstrap extends App with ChannelServiceRoute {
     pathPrefix("ws")(channelRoute)
   )
 
-  val binding: Future[Http.ServerBinding] = Http().bindAndHandle(routes, "localhost", port)
+  val binding: Future[Http.ServerBinding] = Http().bindAndHandle(routes, interface, port)
   binding.onComplete {
     case Success(bound) => logger.info(s"Server online at http://${bound.localAddress.getHostString}:${bound.localAddress.getPort}/")
     case Failure(e) => logger.error(s"Server could not start!", e)
   }
 
-  scala.sys.addShutdownHook { () =>
+  scala.sys.addShutdownHook {
     system.terminate()
     logger.info("System terminated")
   }
