@@ -9,7 +9,7 @@ import org.scalatest.{Matchers, WordSpec}
 class ChannelServiceRouteTest extends WordSpec with Matchers with ScalatestRouteTest with ChannelServiceRoute {
 
   import com.softwaremill.tagging._
-  import io.daewon.util.Util._
+  import io.daewon.util._
   import scala.concurrent.duration._
 
   import ChannelProtocol._
@@ -22,8 +22,8 @@ class ChannelServiceRouteTest extends WordSpec with Matchers with ScalatestRoute
   val userDun: String @@ User = "dun".tag[User]
   val userYang: String @@ User = "yanggury".tag[User]
 
-  val topicHttp: String @@ Topic = "http".tag[Topic]
-  val topicCSS: String @@ Topic = "css".tag[Topic]
+  val topicHttp: String @@ Topic = "HTTP".tag[Topic]
+  val topicCSS: String @@ Topic = "CSS".tag[Topic]
 
   // check response f
   WS(s"/join/${userDun}", dun.flow) ~> channelRoute ~> check {

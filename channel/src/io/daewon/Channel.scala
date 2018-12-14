@@ -10,7 +10,8 @@ import scala.concurrent.ExecutionContext
 import com.softwaremill.tagging._
 import ChannelCommand._
 
-class Channel(channelEventCallback: ChannelCommand => Unit)(implicit materializer: ActorMaterializer) {
+trait Channel[A] {
+  implicit val materializer: ActorMaterializer
 
   private val logger = LoggerFactory.getLogger(this.getClass)
 
@@ -19,6 +20,8 @@ class Channel(channelEventCallback: ChannelCommand => Unit)(implicit materialize
 
   private val topics =
     collection.concurrent.TrieMap.empty[String, List[String]]
+
+  def onLeave(cmd: ChannelCommand): Unit
 
   def getOrCreateQueue(userId: String): (SourceQueueWithComplete[ChannelCommand], Source[ChannelCommand, NotUsed]) = {
     connections.getOrElseUpdate(userId, {
@@ -84,7 +87,12 @@ class Channel(channelEventCallback: ChannelCommand => Unit)(implicit materialize
       connections -= userId
     }
 
-    channelEventCallback(Leave(userId.taggedWith[User]))
+    onLeave(Leave(userId.taggedWith[User]))
+  }
+
+  def handleIncoming(sender: SourceQueueWithComplete[ChannelCommand], cmd: ChannelCommand): Unit = {
+    receive(sender, cmd)
+    ()
   }
 
   def join(userId: String): Flow[Message, TextMessage, Unit] = {
@@ -99,11 +107,9 @@ class Channel(channelEventCallback: ChannelCommand => Unit)(implicit materialize
       .mapConcat { // from client
         case TextMessage.Strict(msg) =>
           logger.info(msg)
-          logger.info(ChannelProtocol.decode(msg).toString)
-
           ChannelProtocol.decode(msg) match {
             case Left(e) => receive(queue, Response(500, Option(e.getMessage)))
-            case Right(cmd) => receive(queue, cmd)
+            case Right(cmd) => handleIncoming(queue, cmd)
           }
 
           Nil

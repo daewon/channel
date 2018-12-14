@@ -3,7 +3,8 @@
 import mill._
 import mill.scalalib._
 
-object channel extends ScalaModule {
+trait Common extends ScalaModule {
+
   def scalaVersion = "2.12.8"
 
   def akkaHttpVersion = "10.1.5"
@@ -14,48 +15,7 @@ object channel extends ScalaModule {
 
   def circeVersion = "0.10.1"
 
-  override def ivyDeps = Agg(
-    ivy"org.slf4j:slf4j-api:${slf4jVersion}",
-    ivy"org.slf4j:slf4j-simple:${slf4jVersion}",
-
-    ivy"io.getquill::quill:2.6.0",
-
-    ivy"io.spray::spray-json:1.3.5",
-
-    ivy"com.typesafe.akka::akka-http:${akkaHttpVersion}",
-    ivy"com.typesafe.akka::akka-stream:${akkaVersion}",
-    ivy"com.typesafe.akka::akka-http-spray-json:${akkaHttpVersion}",
-
-    ivy"org.typelevel::cats-core:1.5.0",
-    ivy"com.softwaremill.common::tagging:2.2.1"
-  )
-
-  object test extends Tests {
-    override def ivyDeps = Agg(
-      ivy"com.lihaoyi::os-lib:0.2.5",
-
-      ivy"com.typesafe.akka::akka-http-testkit:${akkaHttpVersion}",
-      ivy"com.typesafe.akka::akka-stream-testkit:${akkaVersion}",
-      ivy"org.scalatest::scalatest:3.0.5"
-    )
-
-    def testFrameworks = Seq("org.scalatest.tools.Framework")
-
-    def testOne(args: String*) = T.command {
-      super.runMain("org.scalatest.run", args: _*)
-    }
-  }
-
-  def lineCount = T {
-    channel.sources()
-      .flatMap(ref => os.walk(ref.path))
-      .filter(path => path.toString.endsWith(".scala"))
-      .map { path => path.toString -> os.read(path).lines.size }
-  }
-
-  override def forkArgs = Seq("-Xmx4g")
-
-  override def scalacOptions = Seq(
+  def scalacOptions = Seq(
     "-deprecation",
     "-unchecked",
     "-encoding", "utf8",
@@ -93,13 +53,79 @@ object channel extends ScalaModule {
     "-Ywarn-value-discard",
     "-Ywarn-extra-implicit",
 
-    // "-Ywarn-unused:imports",
-    //    "-Y:warning:SC-XXXX:ignore",
     "-Ywarn-unused:locals",
     "-Ywarn-unused:params",
     "-Ywarn-unused:patvars",
     "-Ywarn-unused:privates",
     "-Ywarn-unused:implicits"
   )
+}
 
+object channel extends Common {
+
+  override def ivyDeps = Agg(
+    ivy"org.slf4j:slf4j-api:${slf4jVersion}",
+    ivy"org.slf4j:slf4j-simple:${slf4jVersion}",
+
+    ivy"io.getquill::quill:2.6.0",
+
+    ivy"io.spray::spray-json:1.3.5",
+
+    ivy"com.typesafe.akka::akka-http:${akkaHttpVersion}",
+    ivy"com.typesafe.akka::akka-stream:${akkaVersion}",
+    ivy"com.typesafe.akka::akka-http-spray-json:${akkaHttpVersion}",
+
+    ivy"org.typelevel::cats-core:1.5.0",
+    ivy"com.softwaremill.common::tagging:2.2.1"
+  )
+
+  object test extends Tests {
+    def testFrameworks = Seq("org.scalatest.tools.Framework")
+
+    def testOne(args: String*) = T.command {
+      super.runMain("org.scalatest.run", args: _*)
+    }
+
+    override def ivyDeps = Agg(
+      ivy"com.typesafe.akka::akka-http-testkit:${akkaHttpVersion}",
+      ivy"com.typesafe.akka::akka-stream-testkit:${akkaVersion}",
+      ivy"org.scalatest::scalatest:3.0.5"
+    )
+  }
+}
+
+object app extends Common {
+  def moduleDeps = Seq(channel)
+
+  override def ivyDeps = Agg(
+    ivy"org.slf4j:slf4j-api:${slf4jVersion}",
+    ivy"org.slf4j:slf4j-simple:${slf4jVersion}",
+
+    ivy"io.getquill::quill:2.6.0",
+
+    ivy"io.spray::spray-json:1.3.5",
+
+    ivy"com.typesafe.akka::akka-http:${akkaHttpVersion}",
+    ivy"com.typesafe.akka::akka-stream:${akkaVersion}",
+    ivy"com.typesafe.akka::akka-http-spray-json:${akkaHttpVersion}",
+
+    ivy"org.typelevel::cats-core:1.5.0",
+    ivy"com.softwaremill.common::tagging:2.2.1"
+  )
+
+  object test extends Tests {
+    def testFrameworks = Seq("org.scalatest.tools.Framework")
+
+    def testOne(args: String*) = T.command {
+      super.runMain("org.scalatest.run", args: _*)
+    }
+
+    override def ivyDeps = Agg(
+      ivy"com.lihaoyi::os-lib:0.2.5",
+
+      ivy"com.typesafe.akka::akka-http-testkit:${akkaHttpVersion}",
+      ivy"com.typesafe.akka::akka-stream-testkit:${akkaVersion}",
+      ivy"org.scalatest::scalatest:3.0.5"
+    )
+  }
 }

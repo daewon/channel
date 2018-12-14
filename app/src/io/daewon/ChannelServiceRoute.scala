@@ -8,17 +8,23 @@ import akka.stream._
 import org.slf4j.LoggerFactory
 import akka.http.scaladsl.marshallers.sprayjson.SprayJsonSupport
 
-trait ChannelServiceRoute extends SprayJsonSupport {
+import spray.json._
+
+trait ChannelServiceRoute extends SprayJsonSupport { self =>
   implicit val system: ActorSystem
   implicit val materializer: ActorMaterializer
 
   private val logger = LoggerFactory.getLogger(this.getClass)
 
-  def onChannelEvent(cmd: ChannelCommand): Unit = cmd match {
-    case _ => logger.info(cmd.toString)
-  }
+  type ChannelMessage = String
 
-  lazy val channel: Channel = new Channel(onChannelEvent)
+  lazy val channel: Channel[ChannelMessage] = new Channel[ChannelMessage] {
+    override implicit val materializer: ActorMaterializer = self.materializer
+
+    override def onLeave(cmd: ChannelCommand): Unit = cmd match {
+      case _ => logger.info(cmd.toString)
+    }
+  }
 
   lazy val join: Route = path("join" / Segment) { userId =>
     handleWebSocketMessagesForOptionalProtocol(channel.join(userId), None)
